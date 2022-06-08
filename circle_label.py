@@ -125,14 +125,14 @@ def showPic():
                                current_x + current_r], cv2.COLOR_BGR2RGB)
         # 黑色画布
         image_bg = np.zeros(sub_img.shape, dtype="uint8")
-        cv2.circle(image_bg, (current_r, current_r), current_r, (255, 255, 255), -1)
+        cv2.circle(image_bg, (current_r, current_r), int(current_r*0.95), (255, 255, 255), -1)
         sub_img = sub_img & image_bg
         # 灰度图像
         gray = cv2.cvtColor(sub_img, cv2.COLOR_BGR2GRAY)
         # 二值化
         ret, binary = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY_INV | cv2.THRESH_OTSU)
         image_bg = np.zeros(binary.shape, dtype="uint8")
-        cv2.circle(image_bg, (current_r, current_r), current_r, (255, 255, 255), -1)
+        cv2.circle(image_bg, (current_r, current_r), int(current_r*0.95), (255, 255, 255), -1)
         binary = binary & image_bg
         ret, binary = cv2.threshold(binary, 0, 255, cv2.THRESH_BINARY_INV | cv2.THRESH_OTSU)
         x, y = GetGravityCenter(binary)
@@ -143,6 +143,7 @@ def showPic():
 
         cv2.circle(sub_img, (current_r, current_r), current_r, (255, 0, 0), 5, 1)
         cv2.imwrite("tmp_subimg.jpg", sub_img)
+        cv2.imwrite("tmp_subimg_binary.jpg", binary)
 
         # 图片序号增加
         pic_index = pic_index + 1
@@ -170,7 +171,7 @@ image_label.place(x=0, y=50, width=400, height=400)
 
 # 添加截图按钮功能
 buttonCapture = tkinter.Button(root, text='②保留', command=buttonCaptureClick)
-buttonCapture.place(x=50, y=530, width=100, height=40)
+buttonCapture.place(x=10, y=450, width=100, height=40)
 
 # 下一张
 tkinter.Button(root, text='②舍弃', command=showPic).place(x=175, y=530, width=100, height=40)
