@@ -17,6 +17,7 @@ from PIL import ImageGrab
 from circle_detect import GetCircleList
 from circle_show import GetLabelImg
 from circle_calculate import GetTheta
+from circle_gcenter import GetGravityCenter
 
 # 创建tkinter主窗口
 root = tkinter.Tk()
@@ -37,6 +38,8 @@ xy_text = StringVar()  # 定义坐标显示位置
 current_x = 0
 current_y = 0
 current_r = 0
+gravity_x = 0
+gravity_y = 0
 
 # 保存列表
 circle_infos = []
@@ -63,6 +66,7 @@ def SelectIMGPath():
     img_path.set(file_path)
     # 路径选取结束后，进行图片的读取
     img_detect, tmp_circle_infos = GetCircleList(img_path.get())
+    pic_index = 0
     # 展示切割后的图片
     showPic()
 
@@ -72,108 +76,15 @@ tkinter.Entry(root, textvariable=img_path).place(x=60, y=0)
 tkinter.Button(root, text="①选取图片并进行Hough识别", command=SelectIMGPath).place(x=0, y=20)
 
 
-# 截图插件
-class MyCapture:
-    def __init__(self, png):
-
-        # 变量X和Y用来记录鼠标左键按下的位置
-        self.X = tkinter.IntVar(value=0)
-        self.Y = tkinter.IntVar(value=0)
-        self.selectPosition = None
-
-        # 屏幕尺寸
-        screenWidth = root.winfo_screenwidth()
-        screenHeight = root.winfo_screenheight()
-
-        # 创建顶级组件容器
-        self.top = tkinter.Toplevel(root, width=screenWidth, height=screenWidth)
-
-        # 不显示最大化、最小化按钮
-        self.top.overrideredirect(True)
-        self.canvas = tkinter.Canvas(self.top, bg='white', width=screenWidth, height=screenWidth)
-
-        # 显示全屏截图，在全屏截图上进行区域截图
-        self.image = tkinter.PhotoImage(file=png)
-        self.canvas.create_image(screenWidth // 2, screenHeight // 2, image=self.image)
-
-        # 鼠标左键按下的位置
-        def onLeftButtonDown(event):
-            self.X.set(event.x)
-            self.Y.set(event.y)
-            # 开始截图
-            self.sel = True
-
-        self.canvas.bind('<Button-1>', onLeftButtonDown)
-
-        # 鼠标左键移动，显示选取的区域
-        def onLeftButtonMove(event):
-            if not self.sel:
-                return
-            global lastDraw
-            try:
-                # 删除刚画完的图形，要不然鼠标移动的时候是黑乎乎的一片矩形
-                self.canvas.delete(lastDraw)
-            except Exception as e:
-                pass
-            lastDraw = self.canvas.create_rectangle(self.X.get(), self.Y.get(), event.x, event.y, outline='red')
-
-        self.canvas.bind('<B1-Motion>', onLeftButtonMove)
-
-        # 获取鼠标左键抬起的位置，保存区域截图
-        def onLeftButtonUp(event):
-            self.sel = False
-            try:
-                self.canvas.delete(lastDraw)
-            except Exception as e:
-                pass
-            sleep(0.1)
-
-            # 更新主窗口位置坐标
-            root.update()
-            x = root.winfo_x()
-            y = root.winfo_y()
-
-            # 考虑鼠标左键从右下方按下而从左上方抬起的截图
-            myleft, myright = sorted([self.X.get(), event.x])
-            mytop, mybottom = sorted([self.Y.get(), event.y])
-
-            # Position ： x , y, w, h
-            # self.selectPosition = (myleft - x, mytop - y - 30, myright - x, mybottom - y - 30)
-            self.selectPosition = (
-                myleft - x - 250 + current_r, mytop - y - 30 - 250 + current_r, myright - x - 250 + current_r,
-                mybottom - y - 30 - 250 + current_r)
-            print(myleft, myright)
-            self.top.destroy()
-            print("destroy")
-
-        self.canvas.bind('<ButtonRelease-1>', onLeftButtonUp)
-        self.canvas.pack(fill=tkinter.BOTH, expand=tkinter.YES)
-        # 开始截图
-
-
 # 点击坐标后的操作
 def buttonCaptureClick():
-    filename = 'temp.png'
-    im = ImageGrab.grab()
-    im.save(filename)
-    im.close()
-
-    # 显示全屏幕截图
-    w = MyCapture(filename)
-    buttonCapture.wait_window(w.top)
-
     info_show = "圆心坐标(%d,%d)\n直线指向坐标(%d,%d)\n圆半径%d" % (
-        current_x, current_y, w.selectPosition[0], w.selectPosition[1], current_r)
+        current_x, current_y, gravity_x, gravity_y, current_r)
     # xy_text.set(str(w.selectPosition))
     circle_infos.append((current_x, current_y,
-                         w.selectPosition[0] + current_x - current_r, w.selectPosition[1] + current_y - current_r,
+                         gravity_x, gravity_y,
                          current_r))
     xy_text.set(info_show)
-    global CapturePosition
-    CapturePosition = w.selectPosition
-
-    root.state('normal')
-    os.remove(filename)
     # 更换下一张
     showPic()
     # save2xlsx()
@@ -195,35 +106,59 @@ def save2xlsx():
 # 打开图片文件并显示
 def showPic():
     # 设置全局变量
-    global tmp_circle_infos, pic_index, img_detect, current_x, current_y, current_r
+    global tmp_circle_infos, pic_index, img_detect, current_x, current_y, current_r, gravity_x, gravity_y
     # 判断图片是否读取完了
-    if pic_index == len(tmp_circle_infos):
+    if pic_index >= len(tmp_circle_infos):
         showwarning(title="警告",
-                    message="全部标注完成！")
+                    message="全部检视完成！")
         return
     # 设定参数
     current_x = tmp_circle_infos[pic_index][0]
     current_y = tmp_circle_infos[pic_index][1]
     current_r = tmp_circle_infos[pic_index][2]
-    # 图片裁剪
-    sub_img = cv2.cvtColor(img_detect[current_y - current_r:
-                                      current_y + current_r,
-                           current_x - current_r:
-                           current_x + current_r], cv2.COLOR_BGR2RGB)
-    cv2.circle(sub_img, (current_r, current_r), current_r, (255, 0, 0), 5, 1)
-    cv2.imwrite("tmp_subimg.jpg", sub_img)
 
-    # 图片序号增加
-    pic_index = pic_index + 1
+    try:
+        # 图片裁剪
+        sub_img = cv2.cvtColor(img_detect[current_y - current_r:
+                                          current_y + current_r,
+                               current_x - current_r:
+                               current_x + current_r], cv2.COLOR_BGR2RGB)
+        # 黑色画布
+        image_bg = np.zeros(sub_img.shape, dtype="uint8")
+        cv2.circle(image_bg, (current_r, current_r), current_r, (255, 255, 255), -1)
+        sub_img = sub_img & image_bg
+        # 灰度图像
+        gray = cv2.cvtColor(sub_img, cv2.COLOR_BGR2GRAY)
+        # 二值化
+        ret, binary = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY_INV | cv2.THRESH_OTSU)
+        image_bg = np.zeros(binary.shape, dtype="uint8")
+        cv2.circle(image_bg, (current_r, current_r), current_r, (255, 255, 255), -1)
+        binary = binary & image_bg
+        ret, binary = cv2.threshold(binary, 0, 255, cv2.THRESH_BINARY_INV | cv2.THRESH_OTSU)
+        x, y = GetGravityCenter(binary)
+        gravity_x = x - current_r + current_x
+        gravity_y = y - current_r + current_y
 
-    # 更新图片
-    img_open = Image.open("tmp_subimg.jpg")
-    img_show = ImageTk.PhotoImage(img_open)
-    image_label.config(image=img_show)
-    image_label.image = img_show
+        cv2.circle(sub_img, (x, y), 10, (255, 255, 0), -1)
 
-    # 删除文件
-    os.remove("tmp_subimg.jpg")
+        cv2.circle(sub_img, (current_r, current_r), current_r, (255, 0, 0), 5, 1)
+        cv2.imwrite("tmp_subimg.jpg", sub_img)
+
+        # 图片序号增加
+        pic_index = pic_index + 1
+
+        # 更新图片
+        img_open = Image.open("tmp_subimg.jpg")
+        img_show = ImageTk.PhotoImage(img_open)
+        image_label.config(image=img_show)
+        image_label.image = img_show
+
+        # 删除文件
+        os.remove("tmp_subimg.jpg")
+    except:
+        # 图片序号增加
+        pic_index = pic_index + 1
+        showPic()
 
 
 # 图片显示区域
@@ -234,7 +169,7 @@ image_label.place(x=0, y=50, width=400, height=400)
 # showPic()
 
 # 添加截图按钮功能
-buttonCapture = tkinter.Button(root, text='②标注', command=buttonCaptureClick)
+buttonCapture = tkinter.Button(root, text='②保留', command=buttonCaptureClick)
 buttonCapture.place(x=50, y=530, width=100, height=40)
 
 # 下一张
