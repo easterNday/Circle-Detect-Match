@@ -35,7 +35,7 @@ def normalize(v):
 
 # 获取角度
 def GetTheta(v1, v2):
-    if v1 == v2:
+    if (normalize(v1) == normalize(v2)).all():
         return 0
     circle_slide = eval('%.5f' % dot_product_angle(v1, v2))
     circle_clockwise_slide = eval('%.5f' % clockwise_angle(v1, v2))
@@ -43,9 +43,4 @@ def GetTheta(v1, v2):
 
 
 if __name__ == '__main__':
-    circle_slide = eval('%.5f' % dot_product_angle(np.array([1, 2]), np.array([0, 2])))
-    circle_clockwise_slide = eval('%.5f' % clockwise_angle(np.array([1, 2]), np.array([0, 2])))
-    if circle_slide == circle_clockwise_slide:
-        print(-circle_slide)
-    else:
-        print(circle_slide)
+    print(GetTheta([21, 21], [23, 23]))
