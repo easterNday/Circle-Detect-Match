@@ -1,4 +1,6 @@
 # This is a sample Python script.
+from types import NoneType
+
 import cv2
 import matplotlib.pyplot as plt
 import numpy as np
@@ -15,9 +17,23 @@ def HoughDetect(img, m, n):
     split_img = img[m:n, 0:4800]
     # 基于Hough函数法进行圆形提取
     gray = cv2.cvtColor(split_img, cv2.COLOR_BGR2GRAY)
-    circle1 = cv2.HoughCircles(gray, cv2.HOUGH_GRADIENT, 1, 300, param1=100, param2=10, minRadius=120,
-                               maxRadius=170)  # 320
-    circles = circle1[0, :, :]  # 提取为二维
+    circles = []
+    # 此处是8mm对应的圆柱，检测对应大小160，给定区间150-170
+    circle1 = cv2.HoughCircles(gray, cv2.HOUGH_GRADIENT, 1, 320, param1=100, param2=10, minRadius=150,
+                               maxRadius=170)  # 160
+    if type(circle1) != NoneType:
+        circles.extend(circle1[0, :, :])  # 提取为二维
+    # 此处是5mm对应的圆柱，检测对应大小100，给定区间90-110
+    circle2 = cv2.HoughCircles(gray, cv2.HOUGH_GRADIENT, 1, 200, param1=100, param2=10, minRadius=90,
+                               maxRadius=110)  # 100
+    if type(circle2) != NoneType:
+        circles.extend(circle2[0, :, :])  # 提取为二维
+    # 此处是10mm对应的圆柱，检测对应大小200，给定区间190-210
+    circle3 = cv2.HoughCircles(gray, cv2.HOUGH_GRADIENT, 1, 400, param1=100, param2=10, minRadius=190,
+                               maxRadius=210)  # 200
+    if type(circle3) != NoneType:
+        circles.extend(circle3[0, :, :])  # 提取为二维
+
     circles = np.uint16(np.around(circles))  # 四舍五入，取整
     for i in range(0, len(circles)):
         circles[i][1] = circles[i][1] + m
